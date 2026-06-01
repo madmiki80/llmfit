@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.30](https://github.com/AlexsJones/llmfit/compare/v0.9.29...v0.9.30) (2026-06-01)
+
+
+### Features
+
+* **tui:** fuzzy search in provider filter popup ([#600](https://github.com/AlexsJones/llmfit/issues/600)) ([b055a04](https://github.com/AlexsJones/llmfit/commit/b055a04beb50008c3d868aa7f43598ad6b614d33))
+
 ## [0.9.29](https://github.com/AlexsJones/llmfit/compare/v0.9.28...v0.9.29) (2026-05-27)
 
 
