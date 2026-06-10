@@ -578,28 +578,18 @@ pub struct App {
     // Provider state
     pub ollama_available: bool,
     pub ollama_binary_available: bool,
-    pub ollama_installed: HashSet<String>,
-    pub ollama_installed_count: usize,
+    pub installed: llmfit_core::analysis::InstalledIndex,
     ollama: OllamaProvider,
     pub mlx_available: bool,
-    pub mlx_installed: HashSet<String>,
     mlx: MlxProvider,
     pub llamacpp_available: bool,
-    pub llamacpp_installed: HashSet<String>,
-    pub llamacpp_installed_count: usize,
     pub llamacpp_detection_hint: String,
     llamacpp: LlamaCppProvider,
     pub docker_mr_available: bool,
-    pub docker_mr_installed: HashSet<String>,
-    pub docker_mr_installed_count: usize,
     docker_mr: DockerModelRunnerProvider,
     pub lmstudio_available: bool,
-    pub lmstudio_installed: HashSet<String>,
-    pub lmstudio_installed_count: usize,
     lmstudio: LmStudioProvider,
     pub vllm_available: bool,
-    pub vllm_installed: HashSet<String>,
-    pub vllm_installed_count: usize,
     vllm: VllmProvider,
 
     // Download state
@@ -764,23 +754,17 @@ impl App {
         let ollama = OllamaProvider::new();
         let ollama_available = false;
         let ollama_binary_available = false;
-        let ollama_installed = HashSet::new();
-        let ollama_installed_count = 0;
         let mlx = MlxProvider::new();
         let mlx_available = false;
-        let mlx_installed = HashSet::new();
         let docker_mr = DockerModelRunnerProvider::new();
         let docker_mr_available = false;
-        let docker_mr_installed = HashSet::new();
-        let docker_mr_installed_count = 0;
         let lmstudio = LmStudioProvider::new();
         let lmstudio_available = false;
-        let lmstudio_installed = HashSet::new();
-        let lmstudio_installed_count = 0;
         let vllm = VllmProvider::new();
         let vllm_available = false;
-        let vllm_installed = HashSet::new();
-        let vllm_installed_count = 0;
+        let mut installed = llmfit_core::analysis::InstalledIndex::empty();
+        installed.llamacpp = llamacpp_installed;
+        installed.llamacpp_count = llamacpp_installed_count;
 
         // Spawn background provider detection for network-based providers
         let (provider_tx, provider_detection_rx) = mpsc::channel();
@@ -861,12 +845,7 @@ impl App {
             .filter(|m| backend_compatible(m, &specs))
             .map(|m| {
                 let mut fit = ModelFit::analyze_with_context_limit(m, &specs, context_limit);
-                fit.installed = providers::is_model_installed(&m.name, &ollama_installed)
-                    || providers::is_model_installed_mlx(&m.name, &mlx_installed)
-                    || providers::is_model_installed_llamacpp(&m.name, &llamacpp_installed)
-                    || providers::is_model_installed_docker_mr(&m.name, &docker_mr_installed)
-                    || providers::is_model_installed_lmstudio(&m.name, &lmstudio_installed)
-                    || providers::is_model_installed_vllm(&m.name, &vllm_installed);
+                fit.installed = installed.is_installed(&m.name);
                 fit
             })
             .collect();
@@ -1075,28 +1054,18 @@ impl App {
             download_provider_model: None,
             ollama_available,
             ollama_binary_available,
-            ollama_installed,
-            ollama_installed_count,
+            installed,
             ollama,
             mlx_available,
-            mlx_installed,
             mlx,
             llamacpp_available,
-            llamacpp_installed,
-            llamacpp_installed_count,
             llamacpp_detection_hint,
             llamacpp,
             docker_mr_available,
-            docker_mr_installed,
-            docker_mr_installed_count,
             docker_mr,
             lmstudio_available,
-            lmstudio_installed,
-            lmstudio_installed_count,
             lmstudio,
             vllm_available,
-            vllm_installed,
-            vllm_installed_count,
             vllm,
             pull_active: None,
             pull_status: None,
@@ -2885,11 +2854,7 @@ impl App {
             .map(|m| {
                 let mut fit =
                     ModelFit::analyze_with_context_limit(m, &self.specs, self.context_limit);
-                fit.installed = providers::is_model_installed(&m.name, &self.ollama_installed)
-                    || providers::is_model_installed_mlx(&m.name, &self.mlx_installed)
-                    || providers::is_model_installed_llamacpp(&m.name, &self.llamacpp_installed)
-                    || providers::is_model_installed_docker_mr(&m.name, &self.docker_mr_installed)
-                    || providers::is_model_installed_lmstudio(&m.name, &self.lmstudio_installed);
+                fit.installed = self.installed.is_installed(&m.name);
                 fit
             })
             .collect();
@@ -3309,11 +3274,7 @@ impl App {
             .map(|m| {
                 let mut fit =
                     ModelFit::analyze_with_config(m, &self.specs, self.calc_config.clone());
-                fit.installed = providers::is_model_installed(&m.name, &self.ollama_installed)
-                    || providers::is_model_installed_mlx(&m.name, &self.mlx_installed)
-                    || providers::is_model_installed_llamacpp(&m.name, &self.llamacpp_installed)
-                    || providers::is_model_installed_docker_mr(&m.name, &self.docker_mr_installed)
-                    || providers::is_model_installed_lmstudio(&m.name, &self.lmstudio_installed);
+                fit.installed = self.installed.is_installed(&m.name);
                 fit
             })
             .collect();
@@ -3722,38 +3683,27 @@ impl App {
 
     /// Re-query all providers for installed models and update all_fits.
     pub fn refresh_installed(&mut self) {
-        let (ollama_set, ollama_count) = self.ollama.installed_models_counted();
-        self.ollama_installed = ollama_set;
-        self.ollama_installed_count = ollama_count;
-        self.mlx_installed = self.mlx.installed_models();
-        let (llamacpp_set, llamacpp_count) = self.llamacpp.installed_models_counted();
-        self.llamacpp_installed = llamacpp_set;
-        self.llamacpp_installed_count = llamacpp_count;
-        let (docker_mr_set, docker_mr_count) = self.docker_mr.installed_models_counted();
-        self.docker_mr_installed = docker_mr_set;
-        self.docker_mr_installed_count = docker_mr_count;
-        let (lmstudio_set, lmstudio_count) = self.lmstudio.installed_models_counted();
-        self.lmstudio_installed = lmstudio_set;
-        self.lmstudio_installed_count = lmstudio_count;
-        let (vllm_set, vllm_count) = self.vllm.installed_models_counted();
-        self.vllm_installed = vllm_set;
-        self.vllm_installed_count = vllm_count;
+        let (ollama, ollama_count) = self.ollama.installed_models_counted();
+        let mlx = self.mlx.installed_models();
+        let (llamacpp, llamacpp_count) = self.llamacpp.installed_models_counted();
+        let (docker_mr, docker_mr_count) = self.docker_mr.installed_models_counted();
+        let (lmstudio, lmstudio_count) = self.lmstudio.installed_models_counted();
+        let (vllm, vllm_count) = self.vllm.installed_models_counted();
+        self.installed = llmfit_core::analysis::InstalledIndex {
+            ollama,
+            ollama_count,
+            mlx,
+            llamacpp,
+            llamacpp_count,
+            docker_mr,
+            docker_mr_count,
+            lmstudio,
+            lmstudio_count,
+            vllm,
+            vllm_count,
+        };
         for fit in &mut self.all_fits {
-            fit.installed = providers::is_model_installed(&fit.model.name, &self.ollama_installed)
-                || providers::is_model_installed_mlx(&fit.model.name, &self.mlx_installed)
-                || providers::is_model_installed_llamacpp(
-                    &fit.model.name,
-                    &self.llamacpp_installed,
-                )
-                || providers::is_model_installed_docker_mr(
-                    &fit.model.name,
-                    &self.docker_mr_installed,
-                )
-                || providers::is_model_installed_lmstudio(
-                    &fit.model.name,
-                    &self.lmstudio_installed,
-                )
-                || providers::is_model_installed_vllm(&fit.model.name, &self.vllm_installed);
+            fit.installed = self.installed.is_installed(&fit.model.name);
         }
         self.re_sort();
         self.enqueue_capability_probes_for_visible(24);
@@ -3858,8 +3808,8 @@ impl App {
                         } => {
                             self.ollama_available = available;
                             self.ollama_binary_available = binary_available;
-                            self.ollama_installed = installed;
-                            self.ollama_installed_count = installed_count;
+                            self.installed.ollama = installed;
+                            self.installed.ollama_count = installed_count;
                             self.ollama = provider;
                         }
                         ProviderDetectionMsg::Mlx {
@@ -3867,7 +3817,7 @@ impl App {
                             installed,
                         } => {
                             self.mlx_available = available;
-                            self.mlx_installed = installed;
+                            self.installed.mlx = installed;
                         }
                         ProviderDetectionMsg::DockerMr {
                             available,
@@ -3875,8 +3825,8 @@ impl App {
                             installed_count,
                         } => {
                             self.docker_mr_available = available;
-                            self.docker_mr_installed = installed;
-                            self.docker_mr_installed_count = installed_count;
+                            self.installed.docker_mr = installed;
+                            self.installed.docker_mr_count = installed_count;
                         }
                         ProviderDetectionMsg::LmStudio {
                             available,
@@ -3884,8 +3834,8 @@ impl App {
                             installed_count,
                         } => {
                             self.lmstudio_available = available;
-                            self.lmstudio_installed = installed;
-                            self.lmstudio_installed_count = installed_count;
+                            self.installed.lmstudio = installed;
+                            self.installed.lmstudio_count = installed_count;
                         }
                         ProviderDetectionMsg::Vllm {
                             available,
@@ -3893,8 +3843,8 @@ impl App {
                             installed_count,
                         } => {
                             self.vllm_available = available;
-                            self.vllm_installed = installed;
-                            self.vllm_installed_count = installed_count;
+                            self.installed.vllm = installed;
+                            self.installed.vllm_count = installed_count;
                         }
                     }
                 }
@@ -3908,25 +3858,7 @@ impl App {
         if got_any {
             // Re-mark installed status for all models
             for fit in &mut self.all_fits {
-                fit.installed =
-                    providers::is_model_installed(&fit.model.name, &self.ollama_installed)
-                        || providers::is_model_installed_mlx(&fit.model.name, &self.mlx_installed)
-                        || providers::is_model_installed_llamacpp(
-                            &fit.model.name,
-                            &self.llamacpp_installed,
-                        )
-                        || providers::is_model_installed_docker_mr(
-                            &fit.model.name,
-                            &self.docker_mr_installed,
-                        )
-                        || providers::is_model_installed_lmstudio(
-                            &fit.model.name,
-                            &self.lmstudio_installed,
-                        )
-                        || providers::is_model_installed_vllm(
-                            &fit.model.name,
-                            &self.vllm_installed,
-                        );
+                fit.installed = self.installed.is_installed(&fit.model.name);
             }
             self.re_sort();
         }
@@ -3989,7 +3921,8 @@ impl App {
             let _ = std::fs::create_dir_all(parent);
         }
         let mut installed: Vec<String> = self
-            .ollama_installed
+            .installed
+            .ollama
             .iter()
             .map(|m| m.strip_suffix(":latest").unwrap_or(m).to_string())
             .collect();
@@ -4020,7 +3953,8 @@ impl App {
 
         // Check if installed models match
         let mut installed: Vec<String> = self
-            .ollama_installed
+            .installed
+            .ollama
             .iter()
             .map(|m| m.strip_suffix(":latest").unwrap_or(m).to_string())
             .collect();
@@ -4113,7 +4047,8 @@ impl App {
         // Deduplicate: strip ":latest" suffix and remove dupes
         let mut seen = std::collections::HashSet::new();
         let mut models: Vec<String> = self
-            .ollama_installed
+            .installed
+            .ollama
             .iter()
             .map(|m| m.strip_suffix(":latest").unwrap_or(m).to_string())
             .filter(|m| seen.insert(m.clone()))
