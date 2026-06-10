@@ -151,11 +151,8 @@ pub fn build_model_fits(
         .iter()
         .filter(|m| backend_compatible(m, specs))
         .map(|m| {
-            let mut fit = if let Some(rt) = forced_runtime {
-                ModelFit::analyze_with_forced_runtime(m, specs, context_limit, Some(rt))
-            } else {
-                ModelFit::analyze_with_context_limit(m, specs, context_limit)
-            };
+            let mut fit =
+                ModelFit::analyze_with_forced_runtime(m, specs, context_limit, forced_runtime);
             fit.installed = installed.is_installed(&m.name);
             fit
         })
