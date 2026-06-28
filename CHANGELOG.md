@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.34](https://github.com/AlexsJones/llmfit/compare/v0.9.33...v0.9.34) (2026-06-28)
+
+
+### Bug Fixes
+
+* pin Docker builder to bookworm to match runtime glibc ([f13a633](https://github.com/AlexsJones/llmfit/commit/f13a6332e62713b22bf96b7a26b551f43caed831))
+* pin Docker builder to bookworm to match runtime glibc ([48caf17](https://github.com/AlexsJones/llmfit/commit/48caf178baaf7e7c0f81bfd30f4972b404528cf7)), closes [#655](https://github.com/AlexsJones/llmfit/issues/655)
+
 ## [0.9.33](https://github.com/AlexsJones/llmfit/compare/v0.9.32...v0.9.33) (2026-06-23)
 
 
